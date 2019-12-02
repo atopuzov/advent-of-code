@@ -31,7 +31,7 @@ bruteForce xs = head helper
     helper = do
       noun <- [0..99]
       verb <- [0..99]
-      let run = runProg (DV.fromList xs DV.// [(1,noun), (2,verb)])
+      let run = runProg (xs DV.// [(1, noun), (2, verb)])
       guard ((run DV.! 0) == 19690720)
       return $ 100 * noun + verb
 
@@ -39,8 +39,8 @@ main :: IO ()
 main = do
   f <- readFile "input.txt"
   --f <- readFile "sample.txt"
-  let parsed = parseFile f
-  let task1 = fmap (runProg . setLastState . DV.fromList) parsed
+  let parsed = fmap DV.fromList parseFile f
+  let task1 = fmap (runProg . setLastState) parsed
   putStrLn "Task 1"
   print $ fmap (DV.! 0) task1
   let task2 = fmap (bruteForce) parsed
