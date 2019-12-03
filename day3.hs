@@ -1,6 +1,7 @@
 import Data.Either (fromRight)
 import Text.ParserCombinators.Parsec
-import qualified Data.Set as DS
+import Data.List (scanl')
+import qualified Data.Map as DM
 
 data Direction = U Int | D Int | R Int | L Int deriving Show
 -- Parsing
@@ -45,26 +46,17 @@ dir (R n) = [(1, 0)    | _ <- [1..n]]
 dir (U n) = [(0, (-1)) | _ <- [1..n]]
 dir (D n) = [(0, 1)    | _ <- [1..n]]
 
-wirePath (x, y) ds = tail $ scanl fun (x, y) $ loc ds
+wirePath (x, y) ds = DM.fromList . tail $ scanl' fun ((x, y), 0) $ loc ds
   where
-    fun (dx, dy) (x, y) = (x + dx, y + dy)
+    fun ((x', y'), l) (dx, dy) = ((x' + dx, y' + dy), l + 1)
     loc ds = [(dx, dy) | d <- ds, (dx, dy) <- dir d]
 
 distance (x, y) = abs x + abs y
 
-sol1 (p1:p2:_) = do
-  let s1 = DS.fromList p1
-  let s2 = DS.fromList p2
-  let i = DS.intersection s1 s2
-  a <- DS.toList i
-  return a
+intersection (p1:p2:_) = DM.intersectionWith (+) p1 p2
 
-sol2 (p1:p2:_) intersections = minimum $ zipWith (+) steps1 steps2
-  where
-    steps1 = fmap (pathToIntersection p1) intersections
-    steps2 = fmap (pathToIntersection p2) intersections
-
-pathToIntersection path intersection = (+1) . length $ takeWhile (/= intersection) path
+sol1 = minimum . fmap distance . DM.keys
+sol2 = minimum . DM.elems
 
 main :: IO ()
 main = do
@@ -72,9 +64,8 @@ main = do
   -- f <- readFile "sample.txt"
   let parsed = fromRight [] $ parseFile f
   let paths =  (fmap (wirePath (0, 0))) parsed
-  let intersections = sol1 paths
-  let distances = (fmap distance) intersections
+  let intersections = intersection paths
   putStrLn "Part1:"
-  print $ minimum distances
+  print $ sol1 intersections
   putStrLn "Part2:"
-  print $ sol2 paths intersections
+  print $ sol2 intersections
