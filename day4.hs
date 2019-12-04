@@ -17,12 +17,9 @@ pass = (dropWhile (<low) . takeWhile (<=high))
          e <- [d..9],
          f <- [e..9]]
 
-valid x =  groups && monotonic
+valid x =  or $ zipWith (==) xs (tail xs)
   where
-    (groups, monotonic) = foldr fun (False, True) checks
-    fun (a,b) (aa, ab) = (a || aa, b && ab)
-    checks = valid' . show $ x
-    valid' xs = zipWith (\a b -> (a == b, a <= b)) xs (tail xs)
+    xs = show x
 
 valid'' xs = any (\x -> length x == 2) $ group $ show xs
 
