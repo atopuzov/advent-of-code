@@ -2,7 +2,20 @@ import Data.List (group)
 
 low = 138241
 high = 674034
-pass = [low..high]
+
+pass = (dropWhile (<low) . takeWhile (<=high))
+  [100000 * a +
+    10000 * b +
+     1000 * c +
+      100 * d +
+       10 * e +
+            f |
+         a <- [1..6],
+         b <- [a..9],
+         c <- [b..9],
+         d <- [c..9],
+         e <- [d..9],
+         f <- [e..9]]
 
 valid x =  groups && monotonic
   where
