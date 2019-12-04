@@ -4,15 +4,12 @@ low = 138241
 high = 674034
 pass = [low..high]
 
-valid x = (not s) && f
+valid x =  groups && monotonic
   where
-    f = or $ fmap fst checks
-    s = or $ fmap snd checks
+    (groups, monotonic) = foldr fun (False, True) checks
+    fun (a,b) (aa, ab) = (a || aa, b && ab)
     checks = valid' . show $ x
-
-valid' (a:b:rest) = (a==b, a>b):valid' (b:rest)
-valid' (a:[]) = []
-valid' [] = []
+    valid' xs = zipWith (\a b -> (a == b, a <= b)) xs (tail xs)
 
 valid'' xs = any (\x -> length x == 2) $ group $ show xs
 
