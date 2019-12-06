@@ -22,15 +22,15 @@ parseFile = parse (parseText <* eof) "(unknown)"
 -- AoC Challenge
 buildTree vertices = foldr (\(k, v) dm -> DM.insertWith (++) k [v] dm) DM.empty vertices
 
-nodePaths tree = depth' [] tree "COM"
+nodePaths tree = nodePath' [] tree "COM"
   where
-    depth' path tree node =
+    nodePath' path tree node =
       case (DM.lookup node tree) of
         Nothing -> currentNode
-        Just children -> foldr (DM.union) currentNode (depths children)
+        Just children -> foldr (DM.union) currentNode (getPaths children)
       where
-        currentNode = DM.singleton node path
-        depths cs = fmap (depth' (node:path) tree) cs
+        currentNode = DM.singleton node (reverse path)
+        getPaths cs = fmap (nodePath' (node:path) tree) cs
 
 commonPath p1 p2 =  foldr (\(a, b) acc -> if a == b then a:acc else acc) [] $ zip p1 p2
 
@@ -41,8 +41,8 @@ orbitalTransfers orbits1 orbits2 intersection =
 sol1 tree = sum $ fmap length $ DM.elems tree
 sol2 tree = orbitalTransfers (fmap length path1) (fmap length path2) (fmap length common)
   where
-    path1 = fmap reverse $ DM.lookup "YOU" tree
-    path2 = fmap reverse $ DM.lookup "SAN" tree
+    path1 = DM.lookup "YOU" tree
+    path2 = DM.lookup "SAN" tree
     common = commonPath <$> path1 <*> path2
 
 main :: IO ()
