@@ -12,25 +12,26 @@ sign = do
 nums = do
   sign <- option id sign
   n <- many1 digit
-  return $ sign (read n :: Integer)
+  return $ sign $ read n
 parseFile = parse (parseText' <* eof) "(unknown)"
 
 data MemAccess = Position | Immediate | Relative deriving Show
 numToMode 0 = Position
 numToMode 1 = Immediate
 numToMode 2 = Relative
-numToMode _ = undefined
+numToMode _ = error "Unknown access mode"
 
-data OpCode = OpAdd | OpMultiply | OpRead | OpWrite | OpJumpIfTrue
-  | OpJumpIfFalse | OpLessThen | OpEquals | OpSetRB | OpHalt deriving Show
-numToOpcode 1  = OpAdd
-numToOpcode 2  = OpMultiply
+type MemCell = Int
+data OpCode = OpBin (MemCell -> MemCell -> MemCell) | OpRead | OpWrite | OpJump (MemCell -> MemCell -> Bool)
+  | OpSet (MemCell -> MemCell -> Bool) | OpSetRB | OpHalt
+numToOpcode 1  = OpBin (+)
+numToOpcode 2  = OpBin (*)
 numToOpcode 3  = OpRead
 numToOpcode 4  = OpWrite
-numToOpcode 5  = OpJumpIfTrue
-numToOpcode 6  = OpJumpIfFalse
-numToOpcode 7  = OpLessThen
-numToOpcode 8  = OpEquals
+numToOpcode 5  = OpJump (/=)
+numToOpcode 6  = OpJump (==)
+numToOpcode 7  = OpSet (<)
+numToOpcode 8  = OpSet (==)
 numToOpcode 9  = OpSetRB
 numToOpcode 99 = OpHalt
 
@@ -41,32 +42,31 @@ decodeInstruction num = (de, c, b, a)
     b  = numToMode (num `div` 1000  `mod` 10)
     a  = numToMode (num `div` 10000 `mod` 10)
 
-type MachineState = (Integer, Integer, DM.Map Integer, Integer)
+type MachineState = (MemCell, MemCell, DM.Map MemCell MemCell)
 data MStatus = MHalt | MStep MachineState |
-  MOutput Integer MachineState | MInput (Integer -> MStatus)
+  MOutput MemCell MachineState | MInput (MemCell -> MStatus)
 
-runProg input xs = runProg' input 0 0 xs
-runProg' i pc bc mem = case stepProg pc bc mem of
-  MHalt -> []
-  MStep (pc', bc', mem') -> runProg' i pc' bc' mem'
-  MOutput x (pc', bc', mem') -> x:(runProg' i pc' bc' mem')
-  MInput f -> runProg' (tail i) pc' bc' mem'
-    where
-      MStep (pc', bc', mem') = f (head i)
+getMState (MStep state) = state
+runProg input xs = runProg' input (0, 0, xs)
+runProg' input state =
+  case stepProg state of
+    MHalt            -> []
+    MStep state'     -> runProg' input state'
+    MOutput x state' -> x:(runProg' input state')
+    MInput f         -> case input of
+      []     -> error "Empty input!"
+      (x:xs) -> runProg' xs (getMState $ f x)
 
 -- Parameters that an instruction writes to will never be in immediate mode.
-stepProg i r xs =
+stepProg (i, r, xs) =
   case opCode of
-    OpAdd         ->               MStep        ((i + 4),        r,  addMul)
-    OpMultiply    ->               MStep        ((i + 4),        r,  addMul)
-    OpRead        -> MInput (\x -> MStep        ((i + 2),        r,  storeInput x))
-    OpWrite       ->               MOutput arg1 ((i + 2),        r,  xs)
-    OpJumpIfTrue  ->               MStep        ((nextJmp (/=)), r,  xs)
-    OpJumpIfFalse ->               MStep        ((nextJmp (==)), r,  xs)
-    OpLessThen    ->               MStep        ((i + 4),        r,  (setOneZero (<)))
-    OpEquals      ->               MStep        ((i + 4),        r,  (setOneZero (==)))
-    OpSetRB       ->               MStep        ((i + 2),        r', xs)
-    OpHalt        ->               MHalt
+    OpBin f  ->                MStep        (i + 4,        r,  binOp f)
+    OpRead   -> MInput $ \x -> MStep        (i + 2,        r,  storeInput x)
+    OpWrite  ->                MOutput arg1 (i + 2,        r,  xs)
+    OpJump f ->                MStep        (nextJmp f,    r,  xs)
+    OpSet f  ->                MStep        (i + 4,        r,  setOneZero f)
+    OpSetRB  ->                MStep        (i + 2,        r', xs)
+    OpHalt   ->                MHalt
 
   where
     instruction = readMem i
@@ -84,11 +84,7 @@ stepProg i r xs =
 
     r' = r + arg1
 
-    operation OpAdd = (+)
-    operation OpMultiply = (*)
-    operation _ = undefined
-
-    nextJmp f = if arg1 `f` 0 then arg2 else (i+3)
+    nextJmp f = if arg1 `f` 0 then arg2 else i + 3
 
     readMem addr | addr >= 0 = fromMaybe 0 (DM.lookup addr xs)
     readMem _                = error "Negative address read"
@@ -101,7 +97,7 @@ stepProg i r xs =
     dst1 = setDest par1m par1
     dst3 = setDest par3m par3
 
-    addMul           = updateMem dst3 (operation opCode arg1 arg2)
+    binOp f          = updateMem dst3 (f arg1 arg2)
     storeInput input = updateMem dst1 input
     setOneZero f     = updateMem dst3 (if arg1 `f` arg2 then 1 else 0)
 
