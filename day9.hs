@@ -21,25 +21,53 @@ numToMode 1 = Immediate
 numToMode 2 = Relative
 numToMode _ = undefined
 
+data OpCode = OpAdd | OpMultiply | OpRead | OpWrite | OpJumpIfTrue
+  | OpJumpIfFalse | OpLessThen | OpEquals | OpSetRB | OpHalt deriving Show
+numToOpcode 1  = OpAdd
+numToOpcode 2  = OpMultiply
+numToOpcode 3  = OpRead
+numToOpcode 4  = OpWrite
+numToOpcode 5  = OpJumpIfTrue
+numToOpcode 6  = OpJumpIfFalse
+numToOpcode 7  = OpLessThen
+numToOpcode 8  = OpEquals
+numToOpcode 9  = OpSetRB
+numToOpcode 99 = OpHalt
+
 decodeInstruction num = (de, c, b, a)
   where
-    de = num `mod` 100
+    de = numToOpcode (num `mod` 100)
     c  = numToMode (num `div` 100   `mod` 10)
     b  = numToMode (num `div` 1000  `mod` 10)
     a  = numToMode (num `div` 10000 `mod` 10)
 
-runProg input xs = runProg' input [] 0 0 xs
-runProg' i o pc bc mem =
-  if DM.null mem
-  then []
-  else case o' of
-         []     ->    runProg' i' o' pc' bc' mem'
-         (x:[]) -> x:(runProg' i' [] pc' bc' mem')
-  where
-    (i', o', pc', bc', mem') = stepProg i o pc bc mem
+type MachineState = (Int, Int, DM.Map Int Int)
+data MStatus = MHalt | MStep MachineState |
+  MOutput Int MachineState | MInput (Int -> MStatus)
+
+runProg input xs = runProg' input 0 0 xs
+runProg' i pc bc mem = case stepProg pc bc mem of
+  MHalt -> []
+  MStep (pc', bc', mem') -> runProg' i pc' bc' mem'
+  MOutput x (pc', bc', mem') -> x:(runProg' i pc' bc' mem')
+  MInput f -> runProg' (tail i) pc' bc' mem'
+    where
+      MStep (pc', bc', mem') = f (head i)
 
 -- Parameters that an instruction writes to will never be in immediate mode.
-stepProg input output i r xs = runOpCode opCode
+stepProg i r xs =
+  case opCode of
+    OpAdd         ->               MStep        ((i + 4),        r,  addMul)
+    OpMultiply    ->               MStep        ((i + 4),        r,  addMul)
+    OpRead        -> MInput (\x -> MStep        ((i + 2),        r,  storeInput x))
+    OpWrite       ->               MOutput arg1 ((i + 2),        r,  xs)
+    OpJumpIfTrue  ->               MStep        ((nextJmp (/=)), r,  xs)
+    OpJumpIfFalse ->               MStep        ((nextJmp (==)), r,  xs)
+    OpLessThen    ->               MStep        ((i + 4),        r,  (setOneZero (<)))
+    OpEquals      ->               MStep        ((i + 4),        r,  (setOneZero (==)))
+    OpSetRB       ->               MStep        ((i + 2),        r', xs)
+    OpHalt        ->               MHalt
+
   where
     instruction = readMem i
     (opCode, par1m, par2m, par3m) = decodeInstruction instruction
@@ -54,21 +82,10 @@ stepProg input output i r xs = runOpCode opCode
     arg1   = getArg par1m par1
     arg2   = getArg par2m par2
 
-    runOpCode 99 = (input,  output,  0,              r,  DM.empty)          -- End
-    runOpCode 1  = (input,  output,  (i + 4),        r,  addMul)            -- Add
-    runOpCode 2  = (input,  output,  (i + 4),        r,  addMul)            -- Multiply
-    runOpCode 3  = (input', output,  (i + 2),        r,  storeInput)        -- Read input and store
-    runOpCode 4  = (input,  output', (i + 2),        r,  xs)                -- Write to output
-    runOpCode 5  = (input,  output,  (nextJmp (/=)), r,  xs)                -- Jump if true
-    runOpCode 6  = (input,  output,  (nextJmp (==)), r,  xs)                -- Jump if false
-    runOpCode 7  = (input,  output,  (i + 4),        r,  (setOneZero (<)))  -- Less then
-    runOpCode 8  = (input,  output,  (i + 4),        r,  (setOneZero (==))) -- Equals
-    runOpCode 9  = (input,  output,  (i + 2),        r', xs)
-
     r' = r + arg1
 
-    operation 1 = (+)
-    operation 2 = (*)
+    operation OpAdd = (+)
+    operation OpMultiply = (*)
     operation _ = undefined
 
     nextJmp f = if arg1 `f` 0 then arg2 else (i+3)
@@ -80,17 +97,13 @@ stepProg input output i r xs = runOpCode opCode
 
     setDest Position par = par
     setDest Relative par = r + par
+
     dst1 = setDest par1m par1
     dst3 = setDest par3m par3
 
-    addMul       = updateMem dst3 (operation opCode arg1 arg2)
-    storeInput   = updateMem dst1 inputValue
-    setOneZero f = updateMem dst3 (if arg1 `f` arg2 then 1 else 0)
-
-    inputValue = head input
-    input' = tail input
-    output' = [arg1]
-
+    addMul           = updateMem dst3 (operation opCode arg1 arg2)
+    storeInput input = updateMem dst1 input
+    setOneZero f     = updateMem dst3 (if arg1 `f` arg2 then 1 else 0)
 
 main :: IO ()
 main = do
