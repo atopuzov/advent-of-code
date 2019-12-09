@@ -12,7 +12,7 @@ sign = do
 nums = do
   sign <- option id sign
   n <- many1 digit
-  return $ sign (read n :: Int)
+  return $ sign (read n :: Integer)
 parseFile = parse (parseText' <* eof) "(unknown)"
 
 data MemAccess = Position | Immediate | Relative deriving Show
@@ -41,9 +41,9 @@ decodeInstruction num = (de, c, b, a)
     b  = numToMode (num `div` 1000  `mod` 10)
     a  = numToMode (num `div` 10000 `mod` 10)
 
-type MachineState = (Int, Int, DM.Map Int Int)
+type MachineState = (Integer, Integer, DM.Map Integer, Integer)
 data MStatus = MHalt | MStep MachineState |
-  MOutput Int MachineState | MInput (Int -> MStatus)
+  MOutput Integer MachineState | MInput (Integer -> MStatus)
 
 runProg input xs = runProg' input 0 0 xs
 runProg' i pc bc mem = case stepProg pc bc mem of
