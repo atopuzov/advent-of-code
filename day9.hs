@@ -75,7 +75,7 @@ stepProg (i, r, xs) =
     par2  = readMem (i + 2)
     par3  = readMem (i + 3)
 
-    getArg Position  par = readMem par1
+    getArg Position  par = readMem par
     getArg Immediate par = par
     getArg Relative  par = readMem (r + par)
 
