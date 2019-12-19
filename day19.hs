@@ -98,29 +98,6 @@ stepProg (i, r, xs) =
 createMemory xs = DM.fromList $ zip [0..] xs
 
 ---------------------------------------------------------------------------
-bounds dm = ([xmin..xmax], [ymin..ymax])
-  where
-    k = DM.keys dm
-    xs = fmap fst k
-    ys = fmap snd k
-    xmin = minimum xs
-    xmax = maximum xs
-    ymin = minimum ys
-    ymax = maximum ys
-
-printImage dm = unlines image
-  where
-    printPixel pixel = case DM.lookup pixel dm of
-      Just n   -> n
-      _        -> ' '
-    (xrange, yrange) = bounds dm
-    image = [ [ printPixel (x, y) | x <- xrange ] | y <- yrange ]
-
-loc y x a = ((x, y), a)
-prepLine y line = zipWith (loc y) [0..] line
-readImage = concat . zipWith prepLine [0..]
-
----------------------------------------------------------------------------
 
 scanRec h w = [ [x, y] | x <- [0..w] , y <- [0..h] ]
 
