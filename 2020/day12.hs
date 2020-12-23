@@ -9,6 +9,10 @@ instructionParser = do
 parseText = sepBy1 instructionParser (string "\n")
 parseFile = parse (parseText <* eof) "(unknown)"
 
+--    N
+--  W   E
+--    S
+
 toDegrees 'E' = 0
 toDegrees 'N' = 90
 toDegrees 'W' = 180
@@ -59,6 +63,7 @@ main = do
     f <- readFile "input"
 
     let parsed = fromRight [] $ parseFile f
+    -- print $ parsed
 
     let ship = (0, 0)
     let starting = (ship, 'E')
